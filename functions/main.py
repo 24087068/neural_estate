@@ -13,7 +13,7 @@ def load_local():
     img_test = "../data/test/"
     df_test_meta = pd.read_csv(csv_test)
     return df_train_meta, img_train, df_test_meta, img_test
-# Alt Colab import
+# Alt Colab import:
 def load_colab():
     from google.colab import drive
     drive.mount('/content/drive')
@@ -26,7 +26,7 @@ def load_colab():
     return df_train_meta, img_train, df_test_meta, img_test
 
 # EDA:
-# Images showcase
+# Images showcase:
 def img_show(df, img_path):
     plt.figure(figsize=(20, 20))
     for i, (idx, row) in enumerate(df.sample(9).iterrows()):
@@ -37,7 +37,7 @@ def img_show(df, img_path):
         plt.title(row['Price'])
         plt.axis('off')
     plt.show()
-# Correlation
+# Correlation:
 def corr_show(df):
     corr = df.corr()
     sns.heatmap(corr, annot=True)
