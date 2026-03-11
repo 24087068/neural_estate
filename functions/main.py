@@ -17,11 +17,11 @@ def load_local():
 def load_colab():
     from google.colab import drive
     drive.mount('/content/drive')
-    csv_train = "/content/drive/MyDrive/data/train.csv"
-    img_train = "/content/drive/MyDrive/data/train/"
+    csv_train = "/content/drive/MyDrive/neural_estate_data_colab/train.csv"
+    img_train = "/content/drive/MyDrive/neural_estate_data_colab/train/"
     df_train_meta = pd.read_csv(csv_train)
-    csv_test = "/content/drive/MyDrive/data/test.csv"
-    img_test = "/content/drive/MyDrive/data/test/"
+    csv_test = "/content/drive/MyDrive/neural_estate_data_colab/test.csv"
+    img_test = "/content/drive/MyDrive/neural_estate_data_colab/test/"
     df_test_meta = pd.read_csv(csv_test)
     return df_train_meta, img_train, df_test_meta, img_test
 
