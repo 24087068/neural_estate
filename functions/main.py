@@ -108,3 +108,79 @@ def build_cnn():
     return model
 
 
+# MULTIMODAL:
+def prep_multimodal_data(df_train, df_test, img_train_path, img_test_path, img_size=224):
+    """Load and prepare image + tabular data for the multimodal model."""
+    features = ['Area', 'Bedrooms', 'Bathrooms', 'Latitude', 'Longitude']
+
+    # Tabular features
+    x_tab_train = df_train[features].values.astype('float32')
+    x_tab_test = df_test[features].values.astype('float32')
+    scaler = StandardScaler()
+    x_tab_train = scaler.fit_transform(x_tab_train)
+    x_tab_test = scaler.transform(x_tab_test)
+
+    # Images (resized to img_size x img_size for EfficientNetB0)
+    x_img_train = load_images(df_train, img_train_path, img_size=(img_size, img_size))
+    x_img_test = load_images(df_test, img_test_path, img_size=(img_size, img_size))
+
+    # Log-transform target (GenAi: Target Scaling And Huber Loss For Hitting MALE Target.)
+    y_train = np.log1p(df_train['Price'].values.astype('float32'))
+
+    return x_img_train, x_tab_train, y_train, x_img_test, x_tab_test, scaler
+
+
+def build_multimodal(img_size=224):
+    """
+    Build a multimodal model with two parallel branches:
+      - Image branch: EfficientNetB0 (frozen) + dense head
+      - Tabular branch: fully-connected layers on the 5 metadata features
+    The branches are merged via Concatenate, followed by shared dense layers.
+    Returns (compiled model, base_model) so the caller can fine-tune the base.
+    """
+    from tensorflow.keras.applications import EfficientNetB0
+
+    # --- Image branch ---
+    base_model = EfficientNetB0(
+        include_top=False,
+        weights='imagenet',
+        input_shape=(img_size, img_size, 3)
+    )
+    base_model.trainable = False  # frozen in phase 1
+
+    img_input = layers.Input(shape=(img_size, img_size, 3), name='image_input')
+    # Data augmentation inside the model (active only during training)
+    x_img = layers.RandomFlip('horizontal')(img_input)
+    x_img = layers.RandomBrightness(0.1)(x_img)
+    x_img = layers.RandomContrast(0.1)(x_img)
+    x_img = base_model(x_img, training=False)
+    x_img = layers.GlobalAveragePooling2D()(x_img)
+    x_img = layers.BatchNormalization()(x_img)
+    x_img = layers.Dense(256, activation='relu')(x_img)
+    x_img = layers.Dropout(0.4)(x_img)  # L2-achtige regularisatie via Dropout
+
+    # --- Tabular branch ---
+    tab_input = layers.Input(shape=(5,), name='tabular_input')
+    x_tab = layers.Dense(64, activation='relu')(tab_input)
+    x_tab = layers.BatchNormalization()(x_tab)
+    x_tab = layers.Dense(32, activation='relu')(x_tab)
+
+    # --- Merge via Concatenate ---
+    merged = layers.Concatenate()([x_img, x_tab])
+
+    # --- Shared head ---
+    x = layers.Dense(256, activation='relu')(merged)
+    x = layers.Dropout(0.3)(x)
+    x = layers.Dense(128, activation='relu')(x)
+    x = layers.Dropout(0.2)(x)
+    output = layers.Dense(1, name='output')(x)
+
+    model = keras.Model(inputs=[img_input, tab_input], outputs=output)
+    model.compile(
+        optimizer=keras.optimizers.Adam(learning_rate=1e-4),
+        loss='huber',
+        metrics=['mape']
+    )
+    return model, base_model
+
+
